@@ -13,10 +13,10 @@ from torch.distributions import Categorical
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 from torch.autograd import Variable
 
-class ActorNet(nn.Module):
+class Net(nn.Module):
 
     def __init__(self, num_inputs, hidden1_size, hidden2_size, num_outputs):
-        super(ActorNet, self).__init__()
+        super(Net, self).__init__()
         self.actor = nn.Sequential(
             nn.Conv1d(2, 1, 1),
             nn.Flatten(start_dim=0),
@@ -26,7 +26,6 @@ class ActorNet(nn.Module):
             nn.ReLU(),
             nn.Linear(hidden2_size, num_outputs)
         )
-        self.actor.cuda()
 
     def forward(self, x):
         x = torch.reshape(x, (-1, 2, 1))
@@ -34,40 +33,15 @@ class ActorNet(nn.Module):
         return probs
 
 
-class CriticNet(nn.Module):
-
-    def __init__(self, num_inputs, hidden1_size, hidden2_size):
-        super(CriticNet, self).__init__()
-        self.critic = nn.Sequential(
-            nn.Conv1d(2, 1, 1),
-            nn.Flatten(start_dim=0),
-            nn.Linear(num_inputs, hidden1_size, bias=False),
-            nn.ReLU(),
-            nn.Linear(hidden1_size, hidden2_size, bias=False),
-            nn.ReLU(),
-            nn.Linear(hidden2_size, 1)
-        )
-        self.critic.cuda()
-
-    def forward(self, x):
-        x = torch.reshape(x, (-1, 2, 1))
-        value = self.critic(x)
-        return value
-
-
-class PPO():
+class PG():
     def __init__(self, env, num_inputs, num_outputs, hidden1_size, hidden2_size, std=0.0, window_size=50,
                  learning_rate=1e-1, gamma=0.99, batch_size=20):
-        super(PPO, self).__init__()
-        self.actor_net = ActorNet(
+        super(PG, self).__init__()
+        self.net = ActorNet(
             num_inputs, hidden1_size, hidden2_size, num_outputs)
-        self.critic_net = CriticNet(
-            num_inputs, hidden1_size, hidden2_size)
 
         self.actor_optimizer = optim.Adam(
-            self.actor_net.parameters(), learning_rate)
-        self.critic_net_optimizer = optim.Adam(
-            self.critic_net.parameters(), learning_rate)
+            self.net.parameters(), learning_rate)
 
         self.batch_size = batch_size
         self.gamma = gamma
@@ -79,23 +53,16 @@ class PPO():
         self.max_grad_norm = 0.5
         self.training_step = 0
 
-    def forward(self, x):
-        x = torch.reshape(x, (-1, 2, 1))
-        value = self.critic(x)
-        probs = self.actor(x)
-        return probs, value
-
     def select_action(self, state):
         with torch.no_grad():
-            probs = self.actor_net(state)
-            value = self.critic_net(state)
-        return probs, value
+            probs = self.net(state)
+        return probs
 
     def remember(self, probs, value, reward, done, device, action, state, next_state, action_p, obs):
         dist = Categorical(torch.softmax(probs, dim=-1))
-        log_prob = dist.log_prob(torch.tensor(action).to(device))
+        log_prob = dist.log_prob(torch.tensor(action))
         self.rewards.append(torch.FloatTensor(
-            [reward]).unsqueeze(-1).to(device))
+            [reward]).unsqueeze(-1))
 
         self.states.append(state)
         self.action_probs.append(action_p)
@@ -113,37 +80,20 @@ class PPO():
 
         for i in range(self.ppo_update_time):
             for index in BatchSampler(SubsetRandomSampler(range(len(self.states))), self.batch_size, False):
-                Gt_index = Gt[index].view(-1, 1)
-                V = torch.tensor([self.critic_net(self.states[ind])
-                                  for ind in index], dtype=torch.float).view(-1, 1)
-                delta = Gt_index - V
-                advantage = delta.detach().to('cuda:0')
-                action_prob = torch.softmax(torch.stack([self.actor_net(self.states[ind])
+                _Gt = Gt[index].view(-1, 1)
+                action_prob = torch.softmax(torch.stack([self.net(self.states[ind])
                                                          for ind in index]), dim=1)
 
                 ratio = (action_prob / old_action_log_prob[index])
-                surr1 = ratio * advantage
-                surr2 = torch.clamp(ratio, 1 - self.clip_param,
-                                    1 + self.clip_param) * advantage
 
-                # update actor network
-                action_loss = -torch.min(surr1, surr2).mean()
+                # weight update
+                action_loss = ratio * _Gt.detach()
                 self.actor_optimizer.zero_grad()
                 action_loss = Variable(action_loss, requires_grad=True)
                 action_loss.backward()
                 nn.utils.clip_grad_norm_(
                     self.actor_net.parameters(), self.max_grad_norm)
                 self.actor_optimizer.step()
-
-                # update critic network
-                value_loss = F.mse_loss(Gt_index, V)
-                self.critic_net_optimizer.zero_grad()
-                value_loss = Variable(value_loss, requires_grad=True)
-                value_loss.backward()
-                nn.utils.clip_grad_norm_(
-                    self.critic_net.parameters(), self.max_grad_norm)
-                self.critic_net_optimizer.step()
-                self.training_step += 1
 
         self.rewards = []
         self.states = []

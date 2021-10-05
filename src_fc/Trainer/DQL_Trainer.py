@@ -1,34 +1,24 @@
 from CqGym.Gym import CqsimEnv
-from Models.PG_torch import PG
+from Models.DQL import DQL
+import tensorflow.compat.v1 as tf
 import numpy as np
 
-import torch
-import torch.optim as optim
+tf.disable_v2_behavior()
 
 
-def get_action_from_output_vector(output_vector, wait_queue_size, is_training):
-    action_p = torch.softmax(
-        output_vector[:wait_queue_size], dim=-1).cpu()
-    action_p = np.array(action_p)
-    action_p /= action_p.sum()
-    if is_training:
-        wait_queue_ind = np.random.choice(len(action_p), p=action_p)
-    else:
-        wait_queue_ind = np.argmax(action_p)
-    return wait_queue_ind
+def get_action_from_output_vector(output_vector):
+    return np.argmax(output_vector)
 
 
 def model_training(env, weights_file_name=None, is_training=False, output_file_name=None,
                    window_size=50, learning_rate=0.1, gamma=0.99, batch_size=10, do_render=False):
 
-    use_cuda = torch.cuda.is_available()
-    device = torch.device("cuda" if use_cuda else "cpu")
-    num_inputs = window_size * 2 + 4360 * 1
-    pg = PG(env, num_inputs, window_size, 4000, 1000, std=0.0, window_size=window_size,
-              learning_rate=learning_rate, gamma=gamma, batch_size=batch_size)
+    sess = tf.Session()
+    tf.keras.backend.set_session(sess)
+    dql = DQL(env, sess, window_size, learning_rate, gamma, batch_size)
 
     if weights_file_name:
-        pg.load_using_model_name(weights_file_name)
+        dql.load_using_model_name(weights_file_name)
 
     obs = env.get_state()
     done = False
@@ -36,23 +26,17 @@ def model_training(env, weights_file_name=None, is_training=False, output_file_n
     while not done:
 
         env.render()
+        output_vector = dql.act(obs.feature_vector)
 
-        state = torch.FloatTensor(obs.feature_vector).to(device)
-        probs = pg.select_action(obs.feature_vector)
-
+        action = get_action_from_output_vector(output_vector)
         new_obs, done, reward = env.step(action)
-        next_state = torch.FloatTensor(new_obs.feature_vector).to(device)
-
-        ppo.remember(probs, value, reward, done, device,
-                     action, state, next_state, action_p, obs)
-
+        dql.remember(obs.feature_vector, output_vector, reward, new_obs.feature_vector)
         if is_training:
-            pg.train()
-
+            dql.train()
         obs = new_obs
 
     if is_training and output_file_name:
-        pg.save_using_model_name(output_file_name)
+        dql.save_using_model_name(output_file_name)
 
 
 def model_engine(module_list, module_debug, job_cols=0, window_size=0,

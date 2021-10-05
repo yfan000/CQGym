@@ -4,10 +4,9 @@ import numpy as np
 import torch
 import torch.optim as optim
 
-
 def get_action_from_output_vector(output_vector, wait_queue_size, is_training):
     action_p = torch.softmax(
-        output_vector[:wait_queue_size], dim=-1)
+        output_vector[:wait_queue_size], dim=-1).cpu()
     action_p = np.array(action_p)
     action_p /= action_p.sum()
     if is_training:
@@ -50,8 +49,10 @@ def model_training(env, weights_file_name=None, is_training=False, output_file_n
 
         ppo.remember(probs, value, reward, done, device,
                      action, state, next_state, action_p, obs)
+
         if is_training and not done:
             ppo.train()
+
         obs = new_obs
 
     if is_training and output_file_name:
