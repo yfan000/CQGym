@@ -1,15 +1,16 @@
 from CqGym.Gym import CqsimEnv
-from Models.PG import PG
-import tensorflow.compat.v1 as tf
+from Models.PG_torch import PG
 import numpy as np
 
-tf.disable_v2_behavior()
+import torch
+import torch.optim as optim
 
 
 def get_action_from_output_vector(output_vector, wait_queue_size, is_training):
-    def softmax(z):
-        return np.exp(z) / np.sum(np.exp(z))
-    action_p = softmax(output_vector.flatten()[:wait_queue_size])
+    action_p = torch.softmax(
+        output_vector[:wait_queue_size], dim=-1).cpu()
+    action_p = np.array(action_p)
+    action_p /= action_p.sum()
     if is_training:
         wait_queue_ind = np.random.choice(len(action_p), p=action_p)
     else:
@@ -20,9 +21,11 @@ def get_action_from_output_vector(output_vector, wait_queue_size, is_training):
 def model_training(env, weights_file_name=None, is_training=False, output_file_name=None,
                    window_size=50, learning_rate=0.1, gamma=0.99, batch_size=10, do_render=False):
 
-    sess = tf.Session()
-    tf.keras.backend.set_session(sess)
-    pg = PG(env, sess, window_size, learning_rate, gamma, batch_size)
+    use_cuda = torch.cuda.is_available()
+    device = torch.device("cuda" if use_cuda else "cpu")
+    num_inputs = window_size * 2 + 4360 * 1
+    pg = PG(env, num_inputs, window_size, 4000, 1000, std=0.0, window_size=window_size,
+              learning_rate=learning_rate, gamma=gamma, batch_size=batch_size)
 
     if weights_file_name:
         pg.load_using_model_name(weights_file_name)
@@ -33,13 +36,24 @@ def model_training(env, weights_file_name=None, is_training=False, output_file_n
     while not done:
 
         env.render()
-        output_vector = pg.act(obs.feature_vector)
 
-        action = get_action_from_output_vector(output_vector, obs.wait_que_size, is_training)
+        state = torch.FloatTensor(obs.feature_vector).to(device)
+        probs = pg.select_action(state)
+
+        action_p = torch.softmax(probs.detach(), dim=-1)
+
+        action = get_action_from_output_vector(
+            probs.detach(), obs.wait_que_size, is_training)
+
         new_obs, done, reward = env.step(action)
-        pg.remember(obs.feature_vector, output_vector, reward, new_obs.feature_vector)
+        next_state = torch.FloatTensor(new_obs.feature_vector).to(device)
+
+        pg.remember(probs, reward, done, device,
+                     action, state, next_state, action_p, obs)
+
         if is_training:
             pg.train()
+
         obs = new_obs
 
     if is_training and output_file_name:

@@ -162,7 +162,6 @@ def read_config(fileName):
 
 
 if __name__ == "__main__":
-
     temp_opt = {'alg': [], 'alg_sign': [], 'bf_para': [], 'win_para': [], 'ad_win_para': [], 'ad_bf_para': [],
                 'ad_alg_para': []}
     p = optparse.OptionParser(option_class=Option)

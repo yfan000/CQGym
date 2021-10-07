@@ -13,7 +13,7 @@ import Extend.SWF.Filter_job_SWF as filter_job_ext
 import Extend.SWF.Filter_node_SWF as filter_node_ext
 import Extend.SWF.Node_struc_SWF as node_struc_ext
 
-import Trainer.PG_Trainer as pg_trainer
+import Trainer.PG_torch_Trainer as pg_trainer
 import Trainer.A2C_Trainer as a2c_trainer
 import Trainer.PPO_Trainer as ppo_trainer
 import Trainer.DQL_Trainer as dql_trainer
