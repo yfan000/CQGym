@@ -500,4 +500,19 @@ if __name__ == "__main__":
     if inputPara['output_weight_file']:
         inputPara['output_weight_file'] = inputPara['path_fmt'] + \
             inputPara['output_weight_file']
-    cqsim_main.cqsim_main(inputPara)
+
+    i = 1
+    start = time.time()
+    while True:
+        if i = 2:    # we want to continue training the same model
+           inputPara['input_weight_file'] = inputPara['output_weight_file']
+        elif i = 10:   # swap out sampled trace for real trace 
+           inputPara['job_trace'] = 'real.swf'
+        elif i = 20:   # swap out real trace for synthetic trace
+           inputPara['job_trace'] = 'syn.swf'
+        elif i > 20:
+          if reward - cqsim_main.cqsim_main(inputPara).sum < 0.5 * reward:
+              continue 
+        reward = cqsim_main.cqsim_main(inputPara).sum
+        i += 1
+    print(time.time() - start)

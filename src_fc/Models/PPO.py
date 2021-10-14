@@ -12,6 +12,7 @@ import torch.nn.functional as F
 from torch.distributions import Categorical
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 from torch.autograd import Variable
+import time
 
 class ActorNet(nn.Module):
 
@@ -86,9 +87,11 @@ class PPO():
         return probs, value
 
     def select_action(self, state):
+        start = time.time()
         with torch.no_grad():
             probs = self.actor_net(state)
             value = self.critic_net(state)
+        print(f'{time.time() - start}')
         return probs, value
 
     def remember(self, probs, value, reward, done, device, action, state, next_state, action_p, obs):
@@ -97,6 +100,7 @@ class PPO():
         self.rewards.append(torch.FloatTensor(
             [reward]).unsqueeze(-1).to(device))
 
+        self.reward_seq.append(self.rewards[-1]) 
         self.states.append(state)
         self.action_probs.append(action_p)
 

@@ -57,6 +57,9 @@ def model_training(env, weights_file_name=None, is_training=False, output_file_n
 
     if is_training and output_file_name:
         ppo.save_using_model_name(output_file_name)
+    
+    return ppo.reward_seq.sum
+
 
 
 def model_engine(module_list, module_debug, job_cols=0, window_size=0, sys_size=0,
@@ -75,5 +78,5 @@ def model_engine(module_list, module_debug, job_cols=0, window_size=0, sys_size=
     """
     cqsim_gym = CqsimEnv(module_list, module_debug,
                          job_cols, window_size, do_render)
-    model_training(cqsim_gym, window_size=window_size, sys_size=sys_size, is_training=is_training,
-                   weights_file_name=weights_file, output_file_name=output_file)
+    return model_training(cqsim_gym, window_size=window_size, sys_size=sys_size, is_training=is_training,
+                          weights_file_name=weights_file, output_file_name=output_file)

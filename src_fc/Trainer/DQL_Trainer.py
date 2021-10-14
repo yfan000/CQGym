@@ -2,7 +2,7 @@ from CqGym.Gym import CqsimEnv
 from Models.DQL import DQL
 import tensorflow.compat.v1 as tf
 import numpy as np
-
+import time
 tf.disable_v2_behavior()
 
 
@@ -13,6 +13,7 @@ def get_action_from_output_vector(output_vector):
 def model_training(env, weights_file_name=None, is_training=False, output_file_name=None,
                    window_size=50, learning_rate=0.1, gamma=0.99, batch_size=10, do_render=False):
 
+    start = time.time()
     sess = tf.Session()
     tf.keras.backend.set_session(sess)
     dql = DQL(env, sess, window_size, learning_rate, gamma, batch_size)
@@ -37,6 +38,8 @@ def model_training(env, weights_file_name=None, is_training=False, output_file_n
 
     if is_training and output_file_name:
         dql.save_using_model_name(output_file_name)
+    
+    print(f'{time.time() - start}')
 
 
 def model_engine(module_list, module_debug, job_cols=0, window_size=0,
