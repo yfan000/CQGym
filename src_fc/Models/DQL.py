@@ -5,11 +5,10 @@ import tensorflow.compat.v1 as tf
 import keras.backend as K
 tf.disable_v2_behavior()
 
-np.set_printoptions(threshold=np.inf)
 
-class PG:
+class DQL:
     def __init__(self, env, sess, window_size=50,
-                 learning_rate=1e-1, gamma=0.99, batch_size=20):
+                 learning_rate=1e-2, gamma=0.99, batch_size=20):
 
         self.env = env
         self.sess = sess
@@ -24,41 +23,35 @@ class PG:
 
     def build_policy(self):
         obs_shape = self.env.observation_space.shape
-        input = tf.keras.layers.Input(shape=obs_shape[1:])
-        advantages = tf.keras.layers.Input(shape=[1])
+        input = tf.keras.layers.Input(shape=obs_shape)
         input_reshape = tf.reshape(input, [-1, obs_shape[2], 1])
-        conv1d = tf.keras.layers.Conv1D(
-            1, obs_shape[2], input_shape=(obs_shape[2], 1))(input_reshape)
+        conv1d = tf.keras.layers.Conv1D(1, obs_shape[2], input_shape=(obs_shape[2], 1))(input_reshape)
         conv1d_reshape = tf.reshape(conv1d, [-1, obs_shape[1]])
-        hidden_layer1 = tf.keras.layers.Dense(4000, 'relu', input_shape=(
-            obs_shape[1],), use_bias=False)(conv1d_reshape)
-        hidden_layer2 = tf.keras.layers.Dense(
-            1000, 'relu', input_shape=(4000,), use_bias=False)(hidden_layer1)
-        output = tf.keras.layers.Dense(
-            self.window_size, activation='softmax')(hidden_layer2)
+        hidden_layer1 = tf.keras.layers.Dense(4000, 'relu', input_shape=(obs_shape[1],), use_bias=False)(conv1d_reshape)
+        hidden_layer2 = tf.keras.layers.Dense(1000, 'relu', input_shape=(4000,), use_bias=False)(hidden_layer1)
+        output = tf.keras.layers.Dense(1, activation='sigmoid')(hidden_layer2)
 
         def custom_loss(y_true, y_pred):
-            out = K.clip(y_pred, 1e-8, 1 - 1e-8)
-            log_like = y_true * K.log(out)
+            out = K.clip(y_pred, 1e-8, 1-1e-8)
+            log_like = y_true*K.log(out)
 
-            return K.sum(-log_like * advantages)
+            return K.sum(-log_like)
 
-        policy = tf.keras.Model(inputs=[input, advantages], outputs=output)
+        policy = tf.keras.Model(inputs=input, outputs=output)
         adam = tf.keras.optimizers.Adam(lr=self.lr)
         policy.compile(loss=custom_loss, optimizer=adam)
         predict = tf.keras.Model(inputs=[input], outputs=[output])
-        print(predict.summary())
         return policy, predict
 
     def act(self, obs):
-        return self.predict.predict(obs[0])
+        return self.predict.predict(obs)
 
     def train(self):
         if len(self.memory) < self.batch_size:
             return
 
-        states = np.zeros((self.batch_size, 4460, 2))
-        actions = np.zeros([self.batch_size, self.window_size])
+        states = np.zeros((self.batch_size, *self.env.observation_space.shape))
+        actions = np.zeros([self.batch_size, 1])
         G = np.zeros(self.batch_size)
 
         for i in range(self.batch_size):
@@ -76,11 +69,12 @@ class PG:
         std = np.std(G) if np.std(G) > 0 else 1
         G = (G - mean) / std
 
+        print(states.shape, G.shape, actions.shape)
         self.policy.train_on_batch([states, G], actions)
         self.memory = deque(maxlen=self.batch_size)
 
     def remember(self, obs, action, reward, new_obs):
-        self.memory.append([obs[0], action, reward, new_obs])
+        self.memory.append([obs, action, reward, new_obs])
 
     def save(self, policy_fp, predict_fp):
         self.policy.save_weights(policy_fp)
@@ -91,9 +85,7 @@ class PG:
         self.predict.load_weights(predict_fp)
 
     def save_using_model_name(self, model_name_path):
-        self.save(model_name_path + "_policy_.h5",
-                  model_name_path + "_predict_.h5")
+        self.save(model_name_path + "_policy_.h5", model_name_path + "_predict_.h5")
 
     def load_using_model_name(self, model_name_path):
-        self.load(model_name_path + "_policy_.h5",
-                  model_name_path + "_predict_.h5")
+        self.load(model_name_path + "_policy_.h5", model_name_path + "_predict_.h5")
