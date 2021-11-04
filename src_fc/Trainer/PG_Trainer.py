@@ -1,6 +1,8 @@
 from CqGym.Gym import CqsimEnv
 from Models.PG import PG
 import tensorflow.compat.v1 as tf
+from tensorflow.compat.v1 import ConfigProto
+from tensorflow.compat.v1 import InteractiveSession
 import numpy as np
 
 tf.disable_v2_behavior()
@@ -20,7 +22,10 @@ def get_action_from_output_vector(output_vector, wait_queue_size, is_training):
 def model_training(env, weights_file_name=None, is_training=False, output_file_name=None,
                    window_size=50, learning_rate=0.1, gamma=0.99, batch_size=10, do_render=False):
 
-    sess = tf.Session()
+    config = ConfigProto()
+    config.gpu_options.per_process_gpu_memory_fraction = 2
+    config.gpu_options.allow_growth = True
+    sess = InteractiveSession(config=config)
     tf.keras.backend.set_session(sess)
     pg = PG(env, sess, window_size, learning_rate, gamma, batch_size)
 
@@ -45,6 +50,7 @@ def model_training(env, weights_file_name=None, is_training=False, output_file_n
     if is_training and output_file_name:
         pg.save_using_model_name(output_file_name)
 
+    return pg.reward_seq
 
 def model_engine(module_list, module_debug, job_cols=0, window_size=0,
                  is_training=False, weights_file=None, output_file=None, do_render=False):
@@ -62,5 +68,5 @@ def model_engine(module_list, module_debug, job_cols=0, window_size=0,
     """
     cqsim_gym = CqsimEnv(module_list, module_debug,
                          job_cols, window_size, do_render)
-    model_training(cqsim_gym, window_size=window_size, is_training=is_training,
+    return model_training(cqsim_gym, window_size=window_size, is_training=is_training,
                    weights_file_name=weights_file, output_file_name=output_file)

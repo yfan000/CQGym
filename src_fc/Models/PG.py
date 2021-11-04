@@ -5,14 +5,13 @@ import tensorflow.compat.v1 as tf
 import keras.backend as K
 tf.disable_v2_behavior()
 
-np.set_printoptions(threshold=np.inf)
-
 class PG:
     def __init__(self, env, sess, window_size=50,
                  learning_rate=1e-1, gamma=0.99, batch_size=20):
 
         self.env = env
         self.sess = sess
+        self.reward_seq = []
 
         self.window_size = window_size
         self.batch_size = batch_size
@@ -81,6 +80,7 @@ class PG:
 
     def remember(self, obs, action, reward, new_obs):
         self.memory.append([obs, action, reward, new_obs])
+        self.reward_seq.append(reward)
 
     def save(self, policy_fp, predict_fp):
         self.policy.save_weights(policy_fp)

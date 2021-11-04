@@ -6,6 +6,7 @@ import time
 import re
 import cqsim_path
 import cqsim_main
+import io
 
 
 def datetime_strptime(value, format):
@@ -500,19 +501,40 @@ if __name__ == "__main__":
     if inputPara['output_weight_file']:
         inputPara['output_weight_file'] = inputPara['path_fmt'] + \
             inputPara['output_weight_file']
+    i = 0
+    epoch_times = []
+    epoch_rewards = []
+    val_rewards = []
+    val_times = []
 
-    i = 1
-    start = time.time()
-    while True:
-        if i == 2:    # we want to continue training the same model
-           inputPara['input_weight_file'] = inputPara['output_weight_file']
-        elif i == 10:   # swap out sampled trace for real trace 
-           inputPara['job_trace'] = 'real.swf'
-        elif i == 20:   # swap out real trace for synthetic trace
-           inputPara['job_trace'] = 'syn.swf'
-        elif i > 20:
-          if reward - cqsim_main.cqsim_main(inputPara).sum < 0.5 * reward:
-              continue 
-        reward = cqsim_main.cqsim_main(inputPara).sum
+    while i < 10:
+
+        if i == 1:
+            inputPara['input_weight_file'] = inputPara['output_weight_file'] 
+
+        epoch_start = time.time()
+        # Train
+        reward = sum(cqsim_main.cqsim_main(inputPara))
+        epoch_rewards.append(reward)
+        epoch_end = time.time()
+        # Validate
+        myTrace = inputPara['job_trace']
+        inputPara['job_trace'] = 'theta_data.swf'
+        inputPara['is_training'] = 0
+        val_start = time.time()
+        reward = sum(cqsim_main.cqsim_main(inputPara))
+        val_rewards.append(reward)
+        val_end = time.time()
+        inputPara['job_trace'] = myTrace
+        inputPara['is_training'] = 1 
+
+        epoch_times.append(epoch_end - epoch_start)
+        val_times.append(val_end - val_start)
+
         i += 1
-    print(time.time() - start)
+
+    print(epoch_rewards)
+    print(epoch_times)
+    print(val_rewards)
+    print(val_times)
+

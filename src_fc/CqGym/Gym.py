@@ -73,7 +73,7 @@ class CqsimEnv(Env):
                                     self.simulator.module['node'].get_idle())  # Number of Nodes available.
         return self.gym_state
 
-    def step(self, action: int):
+    def step(self, action):
         """
         :param action: [int] :- Wait-Queue index of the selected Job.
                                 Note - this is not Job Index.

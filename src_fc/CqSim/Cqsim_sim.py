@@ -42,7 +42,7 @@ class Cqsim_sim(Pause, Thread):
         self.simulator_wait_que_indices = []
         self.is_simulation_complete = False
 
-    def run(self) -> None:
+    def run(self):
         """
         Invoke thread which runs the CqSim.
         :return:

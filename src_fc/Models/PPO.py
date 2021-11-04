@@ -73,6 +73,7 @@ class PPO():
         self.batch_size = batch_size
         self.gamma = gamma
         self.rewards = []
+        self.reward_seq = []
         self.states = []
         self.action_probs = []
         self.ppo_update_time = 10

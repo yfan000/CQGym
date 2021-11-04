@@ -46,8 +46,8 @@ class Debug_log:
                     #print debug_log
                 self.debugFile.file_close()
                 self.debug_log_buf = []
-            if (lvl>=self.show) and (context != None):
-                print(context)
+            #if (lvl>=self.show) and (context != None):
+                #print(context)
                 #pass
         
     def line(self,lvl=1,signal="-",num=15):
